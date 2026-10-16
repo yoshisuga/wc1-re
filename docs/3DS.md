@@ -15,6 +15,10 @@ library and SDL2 host as the desktop port. The 3DS-specific code is
    `STREAMS` folder next to `GAMEDAT`.
 3. Start **Wing Commander** from the Homebrew Launcher.
 
+Sound needs the 3DS DSP firmware at `sdmc:/3ds/dspfirm.cdc`, which the DSP1
+homebrew creates. Most homebrew setups already have it. Without it, the game
+says so once at startup and runs silently.
+
 The game also looks for its data in `sdmc:/3ds/WC1`, `sdmc:/wc1` and
 `sdmc:/WC1`, and in the folder the `.3dsx` was started from. If it finds no
 `GAMEDAT` folder, it says so on the top screen and waits for START.
@@ -22,6 +26,15 @@ The game also looks for its data in `sdmc:/3ds/WC1`, `sdmc:/wc1` and
 Settings and saved games go to the same places as on the desktop: saves in
 the game folder, and `wc1-modern.cfg` in SDL's preference folder on the SD
 card.
+
+Errors the game reports with a message box appear on the touch screen.
+Press A to continue.
+
+The SD card driver has no working `getcwd()` and does not accept `..` in
+paths, so on the 3DS `SdlChangeDirectory` records the current directory
+itself and resolves every path to an absolute `sdmc:/` path.
+`GetCurrentDirectoryA` returns that record. The game uses it to find
+`STREAMS` next to `GAMEDAT`.
 
 ## Screens
 
@@ -103,6 +116,14 @@ Two details of the toolchain need care:
 
 The `Nintendo 3DS` GitHub workflow builds the same way and uploads the
 `.3dsx` as an artifact.
+
+## Testing
+
+The port has been run in the Azahar emulator's libretro core, driven headless
+with scripted input. It loads, shows the missing-data screen, starts SDL
+video, input and audio, and resolves game paths case-insensitively under
+`sdmc:/`. It also shows the no-sound notice and continues without DSP
+firmware. It has not yet been played with real game data or on hardware.
 
 ## Not done yet
 

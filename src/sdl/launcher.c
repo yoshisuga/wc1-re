@@ -201,16 +201,29 @@ int main(int argumentCount, char **arguments)
     int usingDosData;
     char swcPath[PATH_MAX];
     SdlLauncherOptions launcherOptions;
+#ifdef __3DS__
+    int n3dsAudioAvailable;
+#endif
 
 #ifdef _WIN32
     ImmDisableIME((DWORD)-1);
+#endif
+#ifdef __3DS__
+    /* Some loaders, emulators among them, start a 3DSX with no arguments.
+     * Argument parsing writes a terminator after the last one it keeps. */
+    static char n3dsProgramName[] = "wc1";
+    static char *n3dsArguments[2] = { n3dsProgramName, 0 };
+    if (argumentCount < 1 || arguments == 0) {
+        argumentCount = 1;
+        arguments = n3dsArguments;
+    }
 #endif
     if (!SdlParsePortArguments(&argumentCount, arguments,
                                &useLauncherGui, &launcherOptions))
         return 1;
 #ifdef __3DS__
     N3dsSetupSystem();
-    if (!N3dsFindGameDirectory()) {
+    if (!N3dsFindGameDirectory(arguments[0])) {
         N3dsShowFatalError("The game data was not found.");
         return 1;
     }
@@ -300,7 +313,20 @@ int main(int argumentCount, char **arguments)
         /* DOS audio drivers cannot be used by the native SDL2 host. */
         bIxAudioEnabled = 0;
     }
+#ifdef __3DS__
+    n3dsAudioAvailable = N3dsAudioAvailable();
+    if (!n3dsAudioAvailable) {
+        bIxAudioEnabled = 0;
+        N3dsShowMessage("No sound",
+                        "The 3DS sound firmware was not\n"
+                        "found, so the game will be silent.\n\n"
+                        "Run DSP1 once to create\n"
+                        "sdmc:/3ds/dspfirm.cdc.");
+    }
+    if (n3dsAudioAvailable && (usingDosData || useEnhancedRenderer)) {
+#else
     if (usingDosData || useEnhancedRenderer) {
+#endif
         if (!SdlInitializeOriginFxAudio(usingDosData)) {
             if (usingDosData) {
                 fprintf(stderr,

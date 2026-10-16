@@ -16,7 +16,6 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #define N3DS_TOP_WIDTH 400
 #define N3DS_BOTTOM_WIDTH 320
@@ -83,6 +82,9 @@ void N3dsSetupSystem(void)
     /* The New 3DS runs at 804 MHz with its extra cache only on request;
      * the original model ignores this. */
     osSetSpeedupEnable(true);
+    /* The port reports problems on stderr.  Send it to the debug output,
+     * which emulators log and a debugger attached through Luma3DS shows. */
+    consoleDebugInit(debugDevice_SVC);
 }
 
 static int N3dsHasGameData(const char *directory)
@@ -97,17 +99,25 @@ static int N3dsHasGameData(const char *directory)
     return stat(path, &info) == 0 && S_ISDIR(info.st_mode);
 }
 
-int N3dsFindGameDirectory(void)
+int N3dsFindGameDirectory(const char *programPath)
 {
     static const char *const candidates[] = {
         "sdmc:/3ds/wc1", "sdmc:/3ds/WC1", "sdmc:/wc1", "sdmc:/WC1",
     };
-    char current[256];
+    char programDirectory[256];
+    char *separator;
     unsigned int index;
 
-    /* A copy launched from inside the data directory uses it directly. */
-    if (getcwd(current, sizeof(current)) != 0 && N3dsHasGameData(current))
-        return 1;
+    /* A copy of the .3dsx kept with the data uses that folder. */
+    if (programPath != 0 &&
+        SDL_strlcpy(programDirectory, programPath,
+                    sizeof(programDirectory)) < sizeof(programDirectory) &&
+        (separator = strrchr(programDirectory, '/')) != 0) {
+        *separator = '\0';
+        if (N3dsHasGameData(programDirectory) &&
+            SdlChangeDirectory(programDirectory) == 0)
+            return 1;
+    }
     for (index = 0; index < SDL_arraysize(candidates); index++) {
         if (N3dsHasGameData(candidates[index]) &&
             SdlChangeDirectory(candidates[index]) == 0)
@@ -134,6 +144,44 @@ void N3dsShowFatalError(const char *message)
         gspWaitForVBlank();
     }
     gfxExit();
+}
+
+int N3dsAudioAvailable(void)
+{
+    /* ndspInit needs the DSP firmware that DSP1 dumps to
+     * sdmc:/3ds/dspfirm.cdc.  Test it here: if SDL cannot open audio
+     * later, the recovered mixer thread calls exit(), and exiting from a
+     * second thread tears libctru down under the main thread. */
+    if (R_FAILED(ndspInit()))
+        return 0;
+    ndspExit();
+    return 1;
+}
+
+void N3dsShowMessage(const char *title, const char *text)
+{
+    PrintConsole console;
+
+    /* The game's MessageBoxA errors would otherwise vanish: SDL has no
+     * message boxes on the 3DS.  The console takes over the touch screen
+     * until A is pressed, then the screen goes back to the game's format. */
+    fprintf(stderr, "%s: %s\n", title != 0 ? title : "", text != 0 ? text : "");
+    consoleInit(GFX_BOTTOM, &console);
+    consoleSelect(&console);
+    printf("\x1b[2J\x1b[1;1H%s\n\n%s\n\nPress A to continue.",
+           title != 0 ? title : "", text != 0 ? text : "");
+    while (aptMainLoop()) {
+        hidScanInput();
+        if (hidKeysDown() & KEY_A)
+            break;
+        gfxFlushBuffers();
+        gfxScreenSwapBuffers(GFX_BOTTOM, false);
+        gspWaitForVBlank();
+    }
+    consoleDebugInit(debugDevice_SVC);
+    gfxSetScreenFormat(GFX_BOTTOM, GSP_RGBA8_OES);
+    gfxSetDoubleBuffering(GFX_BOTTOM, true);
+    g_bN3dsKeyBarDirty = 1;
 }
 
 static const unsigned char *N3dsFindGlyph(char character)

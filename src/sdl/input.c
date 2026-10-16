@@ -1,6 +1,9 @@
 #include "wc1sdl.h"
 
 #include "video_internal.h"
+#ifdef __3DS__
+#include "n3ds.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -37,8 +40,14 @@ BOOL DeviceIoControl(HANDLE device, DWORD controlCode, LPVOID input,
 
 DWORD GetCurrentDirectoryA(DWORD size, char *path)
 {
+#ifdef __3DS__
+    if (path == 0 || size == 0)
+        return 0;
+    SDL_strlcpy(path, SdlGetN3dsCurrentDirectory(), size);
+#else
     if (path == 0 || size == 0 || getcwd(path, size) == 0)
         return 0;
+#endif
     return (DWORD)strlen(path);
 }
 
@@ -71,8 +80,14 @@ int MessageBoxA(HWND window, const char *text, const char *title, UINT type)
     messageFlags = (type & MB_ICONERROR) != 0
                        ? SDL_MESSAGEBOX_ERROR
                        : SDL_MESSAGEBOX_WARNING;
+#ifdef __3DS__
+    (void)messageFlags;
+    (void)window;
+    N3dsShowMessage(title, text);
+#else
     SDL_ShowSimpleMessageBox(messageFlags, title, text,
                              (SDL_Window *)window);
+#endif
     return (type & MB_OKCANCEL) != 0 ? IDCANCEL : IDOK;
 }
 

@@ -326,6 +326,9 @@ void SdlCompleteDosInstallTable(struct DiskFileRecord *records);
 #define timeGetTime SdlGetTicks
 
 int SdlChangeDirectory(const char *path);
+#ifdef __3DS__
+const char *SdlGetN3dsCurrentDirectory(void);
+#endif
 int SdlResolvePath(const char *path, char *resolved,
                       unsigned long resolvedSize);
 

@@ -21,7 +21,7 @@ static int SdlAppendPathComponent(char *path, size_t pathSize,
 
     pathLength = strlen(path);
     componentLength = strlen(component);
-    needsSeparator = pathLength != 1 || path[0] != '/';
+    needsSeparator = pathLength != 0 && path[pathLength - 1] != '/';
     if (pathLength + (size_t)needsSeparator + componentLength + 1 > pathSize)
         return 0;
     if (needsSeparator)
@@ -30,6 +30,38 @@ static int SdlAppendPathComponent(char *path, size_t pathSize,
     return 1;
 }
 
+#ifdef __3DS__
+/* libctru keeps no current directory that newlib's getcwd() can read back:
+ * that walks ".." with readdir, and the SD card device accepts neither.  The
+ * port records the directory itself, and resolves every path to an absolute
+ * "sdmc:/..." path with "." and ".." folded away. */
+static char g_szN3dsCurrentDirectory[PATH_MAX] = "sdmc:/";
+
+const char *SdlGetN3dsCurrentDirectory(void)
+{
+    return g_szN3dsCurrentDirectory;
+}
+
+static int SdlFoldDotComponent(char *path, const char *component)
+{
+    char *last;
+    char *root;
+
+    if (strcmp(component, ".") == 0)
+        return 1;
+    if (strcmp(component, "..") != 0)
+        return 0;
+    root = strstr(path, ":/");
+    root = root != 0 ? root + 2 : path;
+    last = strrchr(root, '/');
+    if (last != 0)
+        *last = '\0';
+    else
+        *root = '\0';
+    return 1;
+}
+#endif
+
 static int SdlAppendResolvedComponent(char *path, size_t pathSize,
                                          const char *component)
 {
@@ -37,6 +69,10 @@ static int SdlAppendResolvedComponent(char *path, size_t pathSize,
     struct dirent *entry;
     int result;
 
+#ifdef __3DS__
+    if (SdlFoldDotComponent(path, component))
+        return 1;
+#endif
     if (strcmp(component, ".") == 0 || strcmp(component, "..") == 0)
         return SdlAppendPathComponent(path, pathSize, component);
     directory = opendir(path);
@@ -76,11 +112,31 @@ int SdlResolvePath(const char *path, char *resolved,
             *separator = '/';
         separator++;
     }
+    cursor = normalized;
+#ifdef __3DS__
+    /* libctru paths name their device, as in "sdmc:/3ds/wc1".  Keep the
+     * device and its root as the prefix rather than resolving "sdmc:" as a
+     * directory under ".". */
+    separator = strchr(normalized, ':');
+    if (separator != 0 && separator[1] == '/' &&
+        strchr(normalized, '/') == separator + 1) {
+        if ((size_t)(separator - normalized) + 3 > sizeof(prefix))
+            return 0;
+        memcpy(prefix, normalized, (size_t)(separator - normalized) + 2);
+        prefix[separator - normalized + 2] = '\0';
+        cursor = separator + 1;
+    } else if (normalized[0] == '/') {
+        strcpy(prefix, "sdmc:/");
+    } else if (strlen(g_szN3dsCurrentDirectory) < sizeof(prefix)) {
+        strcpy(prefix, g_szN3dsCurrentDirectory);
+    } else
+        return 0;
+#else
     if (normalized[0] == '/')
         strcpy(prefix, "/");
     else
         strcpy(prefix, ".");
-    cursor = normalized;
+#endif
     while (*cursor == '/')
         cursor++;
     while (*cursor != '\0') {
@@ -114,7 +170,14 @@ int SdlChangeDirectory(const char *path)
 
     if (!SdlResolvePath(path, resolved, sizeof(resolved)))
         return -1;
+#ifdef __3DS__
+    if (chdir(resolved) != 0)
+        return -1;
+    strcpy(g_szN3dsCurrentDirectory, resolved);
+    return 0;
+#else
     return chdir(resolved);
+#endif
 }
 
 int SdlOpen(const char *path, int flags, ...)

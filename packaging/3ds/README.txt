@@ -15,6 +15,9 @@ Installing
    next to GAMEDAT.
 3. Start "Wing Commander" from the Homebrew Launcher.
 
+Sound needs sdmc:/3ds/dspfirm.cdc, which the DSP1 homebrew creates. Without
+it the game runs silently.
+
 Controls
 --------
 

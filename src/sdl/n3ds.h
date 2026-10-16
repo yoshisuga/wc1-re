@@ -12,8 +12,10 @@
 #define N3DS_KEY_BAR_TOP 204
 
 void N3dsSetupSystem(void);
-int N3dsFindGameDirectory(void);
+int N3dsFindGameDirectory(const char *programPath);
 void N3dsShowFatalError(const char *message);
+void N3dsShowMessage(const char *title, const char *text);
+int N3dsAudioAvailable(void);
 
 int N3dsInitializeVideo(void);
 int N3dsPresentFrame(const unsigned char *pixels,
