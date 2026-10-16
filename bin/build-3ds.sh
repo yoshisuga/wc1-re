@@ -5,7 +5,10 @@
 #
 #   bin/build-3ds.sh
 #
-# The first run builds SDL2 and LZO for the 3DS into out-3ds/deps.
+# N3DS_DOCKER_IMAGE picks another image with devkitARM and libctru.  The
+# build runs in a fresh, throwaway container that sees only this checkout.
+# The first run builds SDL2 and LZO for the 3DS into out-3ds/deps; nothing
+# is installed into the image or its devkitPro tree.
 set -eu
 
 SDL2_TAG=release-2.32.10
@@ -17,7 +20,8 @@ root=$(pwd)
 if [ -z "${DEVKITARM:-}" ] && [ ! -d /opt/devkitpro/devkitARM ]; then
     exec docker run --rm -v "$root:/src" -w /src \
         -u "$(id -u):$(id -g)" -e HOME=/tmp \
-        devkitpro/devkitarm:latest sh bin/build-3ds.sh "$@"
+        "${N3DS_DOCKER_IMAGE:-devkitpro/devkitarm:latest}" \
+        sh bin/build-3ds.sh "$@"
 fi
 
 export DEVKITPRO=${DEVKITPRO:-/opt/devkitpro}
