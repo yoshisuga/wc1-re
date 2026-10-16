@@ -38,3 +38,6 @@ __pycache__/
 *$py.class
 
 .DS_Store
+
+# Nintendo 3DS build
+out-3ds/

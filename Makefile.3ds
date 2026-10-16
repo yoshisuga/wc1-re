@@ -1,0 +1,87 @@
+# Nintendo 3DS build of the SDL2 port.  Run it through bin/build-3ds.sh,
+# which supplies devkitARM and builds SDL2 and LZO for the 3DS first.
+#
+#   make -f Makefile.3ds N3DS_DEPS=out-3ds/deps
+#
+# The source lists come from the main Makefile so the two builds stay in step.
+include Makefile
+.DEFAULT_GOAL := n3ds
+
+DEVKITPRO ?= /opt/devkitpro
+DEVKITARM ?= $(DEVKITPRO)/devkitARM
+N3DS_OUT_DIR = out-3ds
+N3DS_DEPS ?= $(N3DS_OUT_DIR)/deps
+N3DS_PREFIX = $(DEVKITARM)/bin/arm-none-eabi-
+N3DS_CC = $(N3DS_PREFIX)gcc
+N3DS_CXX = $(N3DS_PREFIX)g++
+N3DS_ELF = $(N3DS_OUT_DIR)/wc1.elf
+N3DS_SMDH = $(N3DS_OUT_DIR)/wc1.smdh
+N3DS_3DSX = $(N3DS_OUT_DIR)/wc1.3dsx
+N3DS_ICON ?= packaging/3ds/icon.png
+N3DS_TITLE = Wing Commander
+N3DS_DESCRIPTION = Kilrathi Saga source port
+N3DS_AUTHOR = neuromancer/wc1-re
+
+# The game's on-disk structures hold enums and must keep them 4 bytes wide.
+# Bare-metal ARM GCC shrinks enums by default, as libctru is built, so SDL2
+# is built the same way as the game (see bin/build-3ds.sh).
+N3DS_ARCH = -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft \
+	-mword-relocations -fno-short-enums
+N3DS_CPPFLAGS = -D__3DS__ -DSDL_PORT=1 -DSDL_MAIN_HANDLED -Iinclude \
+	-I$(N3DS_DEPS)/include/SDL2 -I$(N3DS_DEPS)/include \
+	-I$(N3DS_DEPS)/include/lzo -I$(DEVKITPRO)/libctru/include
+N3DS_CFLAGS = -O2 -g -std=c11 -Wno-return-type -Wno-return-mismatch \
+	-Wno-error=incompatible-pointer-types \
+	$(N3DS_ARCH) $(MODERN_SECTION_FLAGS)
+N3DS_CXXFLAGS = -O2 -g -std=c++14 $(N3DS_ARCH) $(MODERN_SECTION_FLAGS)
+N3DS_LDFLAGS = -specs=3dsx.specs $(N3DS_ARCH) -Wl,--gc-sections \
+	-Wl,--no-enum-size-warning \
+	-L$(N3DS_DEPS)/lib -L$(DEVKITPRO)/libctru/lib
+N3DS_LIBS = -lSDL2 -llzo2 -lctru -lm
+
+N3DS_HOST_SRCS = $(filter-out src/sdl/gl_renderer.c, \
+	$(MODERN_BASE_HOST_SRCS) $(MODERN_GAME_HOST_SRCS)) \
+	$(MODERN_LAUNCHER_SRC) src/sdl/n3ds.c
+N3DS_C_SRCS = $(MODERN_GAMEPLAY_SRCS) $(N3DS_HOST_SRCS)
+N3DS_CXX_SRCS = $(MODERN_GAMEPLAY_CXX_SRCS) $(MODERN_IX_SRCS) \
+	$(MODERN_GAME_HOST_CXX_SRCS) $(MODERN_YMFM_SRCS)
+N3DS_OBJS = $(patsubst %,$(N3DS_OUT_DIR)/obj/%.o,$(N3DS_C_SRCS) \
+	$(N3DS_CXX_SRCS) $(MODERN_GAMEPLAY_CXX_C_SRCS))
+
+.PHONY: n3ds clean-3ds
+
+n3ds: $(N3DS_3DSX)
+
+$(N3DS_OUT_DIR)/obj/%.c.o: %.c Makefile.3ds
+	@mkdir -p $(dir $@)
+	$(N3DS_CC) $(N3DS_CPPFLAGS) $(N3DS_CFLAGS) -MMD -MP -c $< -o $@
+
+$(N3DS_OUT_DIR)/obj/%.cpp.o: %.cpp Makefile.3ds
+	@mkdir -p $(dir $@)
+	$(N3DS_CXX) $(N3DS_CPPFLAGS) -Isrc/ix -Ithird_party/ymfm \
+		$(N3DS_CXXFLAGS) -MMD -MP -c $< -o $@
+
+# Same as the desktop build: the wave player is C++ and its IxSound objects
+# go through the SDL positional-audio bridge.
+$(N3DS_OUT_DIR)/obj/src/sound.c.o: src/sound.c Makefile.3ds
+	@mkdir -p $(dir $@)
+	$(N3DS_CXX) $(N3DS_CPPFLAGS) -Isrc/ix \
+		-Dix_system_new_sound=SdlNewWaveSound \
+		$(N3DS_CXXFLAGS) -MMD -MP -x c++ -c $< -o $@
+
+$(N3DS_ELF): $(N3DS_OBJS)
+	$(N3DS_CXX) $(N3DS_LDFLAGS) $^ $(N3DS_LIBS) -o $@
+	python3 bin/n3dsUnalignedRelocs.py $@
+
+$(N3DS_SMDH): $(N3DS_ICON)
+	@mkdir -p $(dir $@)
+	smdhtool --create "$(N3DS_TITLE)" "$(N3DS_DESCRIPTION)" \
+		"$(N3DS_AUTHOR)" $< $@
+
+$(N3DS_3DSX): $(N3DS_ELF) $(N3DS_SMDH)
+	3dsxtool $< $@ --smdh=$(N3DS_SMDH)
+
+clean-3ds:
+	rm -rf $(N3DS_OUT_DIR)/obj $(N3DS_ELF) $(N3DS_SMDH) $(N3DS_3DSX)
+
+-include $(N3DS_OBJS:.o=.d)

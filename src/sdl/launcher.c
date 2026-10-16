@@ -2,6 +2,9 @@
 
 #include "video_internal.h"
 #include "slint/launcher_api.h"
+#ifdef __3DS__
+#include "n3ds.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -205,6 +208,24 @@ int main(int argumentCount, char **arguments)
     if (!SdlParsePortArguments(&argumentCount, arguments,
                                &useLauncherGui, &launcherOptions))
         return 1;
+#ifdef __3DS__
+    N3dsSetupSystem();
+    if (!N3dsFindGameDirectory()) {
+        N3dsShowFatalError("The game data was not found.");
+        return 1;
+    }
+    /* Circle Pad pitches and yaws, the New 3DS C-stick rolls and sets the
+     * throttle, and the face and shoulder buttons fire and select. */
+    if ((launcherOptions.explicitOptions &
+         SDL_LAUNCHER_EXPLICIT_JOYSTICK_MODE) == 0)
+        launcherOptions.joystickMode =
+            SDL_LAUNCHER_JOYSTICK_FOUR_BUTTON_FOUR_AXIS;
+    /* Touch is read directly; SDL's synthetic mouse would duplicate it. */
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+    /* SDL's 3DS threads default to an 80 KB stack; the audio streamer and
+     * mixer threads run recovered code written for Win32's 1 MB. */
+    SDL_SetHint(SDL_HINT_THREAD_STACK_SIZE, "262144");
+#endif
     if (useLauncherGui) {
         launcherResult = SdlOpenLauncherGui(&launcherOptions);
         if (launcherResult == SDL_LAUNCHER_CANCELLED)

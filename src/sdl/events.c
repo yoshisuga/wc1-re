@@ -1,6 +1,9 @@
 #include "wc1.h"
 
 #include "video_internal.h"
+#ifdef __3DS__
+#include "n3ds.h"
+#endif
 
 static int SdlTranslateVirtualKey(SDL_Keycode key)
 {
@@ -551,6 +554,96 @@ static void SdlHandleMouseEvent(const SDL_Event *event)
     bHostSecondaryMouseButton = secondaryButton;
 }
 
+#ifdef __3DS__
+static void SdlSendN3dsKey(SDL_Keycode key, int pressed)
+{
+    SDL_KeyboardEvent event;
+
+    SDL_zero(event);
+    event.type = pressed ? SDL_KEYDOWN : SDL_KEYUP;
+    event.state = pressed ? SDL_PRESSED : SDL_RELEASED;
+    event.keysym.sym = key;
+    event.keysym.scancode = SDL_GetScancodeFromKey(key);
+    SdlHandleKeyboardEvent(&event);
+}
+
+static void SdlSendN3dsTouchPointer(int x, int y, int eventType,
+                                    int primaryButton, int secondaryButton)
+{
+    if (x > 319)
+        x = 319;
+    if (y > 199)
+        y = 199;
+    bPointerMovedByKeyboard = 0;
+    SdlQueueMouseMotion((unsigned short)x, (unsigned short)y,
+                        primaryButton, secondaryButton);
+    if (eventType != 0)
+        QueueInputEvent((unsigned short)eventType, (unsigned short)x,
+                        (unsigned short)y, 0, primaryButton,
+                        secondaryButton, 0);
+    nHostMouseMessageX = x;
+    nHostMouseMessageY = y;
+    bHostPrimaryMouseButton = primaryButton;
+    bHostSecondaryMouseButton = secondaryButton;
+}
+
+/* The touch screen repeats the frame 1:1 above the key bar, so a tap there
+ * is a click at that frame pixel.  Holding L makes it a right click.  A tap
+ * on the key bar presses that key until the stylus lifts. */
+static void SdlPollN3dsTouch(void)
+{
+    static int s_bTouchDown;
+    static int s_bSecondary;
+    static int s_nLastX;
+    static int s_nLastY;
+    static SDL_Keycode s_heldKey = SDLK_UNKNOWN;
+    SDL_Keycode key;
+    int keyIndex;
+    int x;
+    int y;
+
+    if (!N3dsReadTouch(&x, &y)) {
+        if (!s_bTouchDown)
+            return;
+        s_bTouchDown = 0;
+        if (s_heldKey != SDLK_UNKNOWN) {
+            SdlSendN3dsKey(s_heldKey, 0);
+            s_heldKey = SDLK_UNKNOWN;
+            N3dsSetPressedKey(-1);
+            return;
+        }
+        SdlSendN3dsTouchPointer(s_nLastX, s_nLastY, 1, 0, 0);
+        return;
+    }
+    if (!s_bTouchDown) {
+        s_bTouchDown = 1;
+        key = N3dsKeyBarKeyAt(x, y, &keyIndex);
+        if (key != SDLK_UNKNOWN) {
+            s_heldKey = key;
+            N3dsSetPressedKey(keyIndex);
+            SdlSendN3dsKey(key, 1);
+            return;
+        }
+        if (y >= N3DS_TOUCH_FRAME_HEIGHT)
+            y = N3DS_TOUCH_FRAME_HEIGHT - 1;
+        s_bSecondary = N3dsSecondaryTouchHeld();
+        s_nLastX = x;
+        s_nLastY = y;
+        SdlSendN3dsTouchPointer(x, y, 2, !s_bSecondary, s_bSecondary);
+        return;
+    }
+    if (s_heldKey != SDLK_UNKNOWN)
+        return;
+    if (y >= N3DS_TOUCH_FRAME_HEIGHT)
+        y = N3DS_TOUCH_FRAME_HEIGHT - 1;
+    if (x == s_nLastX && y == s_nLastY)
+        return;
+    s_nLastX = x;
+    s_nLastY = y;
+    SdlSendN3dsTouchPointer(x, y, 0, !s_bSecondary, s_bSecondary);
+}
+#endif
+
 void SdlStartEventPump(void)
 {
     bMainWindowAlive = 1;
@@ -619,4 +712,7 @@ void SdlPumpEvents(void)
             break;
         }
     }
+#ifdef __3DS__
+    SdlPollN3dsTouch();
+#endif
 }

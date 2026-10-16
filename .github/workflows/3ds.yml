@@ -1,0 +1,50 @@
+name: Nintendo 3DS
+
+on:
+  push:
+    branches:
+      - "**"
+    paths:
+      - "Makefile"
+      - "Makefile.3ds"
+      - "bin/build-3ds.sh"
+      - "bin/n3dsUnalignedRelocs.py"
+      - "include/**"
+      - "packaging/3ds/**"
+      - "src/**"
+      - "third_party/ymfm/**"
+      - ".github/workflows/3ds.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-3ds:
+    runs-on: ubuntu-24.04
+    container: devkitpro/devkitarm:latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Cache SDL2 and LZO for the 3DS
+        uses: actions/cache@v4
+        with:
+          path: out-3ds/deps
+          key: 3ds-deps-${{ hashFiles('bin/build-3ds.sh') }}
+      - name: Build
+        run: sh bin/build-3ds.sh
+      - name: Package
+        run: |
+          mkdir -p dist/3ds/wc1
+          cp out-3ds/wc1.3dsx dist/3ds/wc1/
+          cp packaging/3ds/README.txt dist/
+      - name: Upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wc1-3ds
+          path: dist/
+          if-no-files-found: error

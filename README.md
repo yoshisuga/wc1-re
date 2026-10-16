@@ -82,6 +82,15 @@ directory. Add `--gui` to review those options in the launcher first; changing
 a control overrides its command-line default. Explicit command-line options
 override remembered settings; direct launches do not read or write the INI file.
 
+### Nintendo 3DS
+
+A homebrew build for the Nintendo 3DS plays the same game data. The top screen
+shows the game at its original 4:3 shape. The touch screen repeats the
+picture for tapping and adds keys for the nav map, autopilot, comms and
+cockpit views. `bin/build-3ds.sh` builds `out-3ds/wc1.3dsx`. See
+[the 3DS documentation](docs/3DS.md) for installation, controls and build
+details.
+
 ### Fixes and features
 
 What the port adds on top of the reconstructed game. The first group is always
@@ -247,7 +256,8 @@ Contributor references are intentionally limited to:
 - [disassembly export workflow](docs/EXPORT.md);
 - [compilation-unit order](docs/ORDER.md);
 - [function naming policy](docs/LABELS.md);
-- [SDL2 port architecture](docs/SDL2.md); and
+- [SDL2 port architecture](docs/SDL2.md);
+- [Nintendo 3DS port](docs/3DS.md); and
 - [release process](docs/RELEASING.md).
 
 ## Acknowledgements
