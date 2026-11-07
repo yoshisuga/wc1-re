@@ -91,6 +91,15 @@ cockpit views. `bin/build-3ds.sh` builds `out-3ds/wc1.3dsx`. See
 [the 3DS documentation](docs/3DS.md) for installation, controls and build
 details.
 
+### iPhone and iPad
+
+An iOS and iPadOS build plays the same game data, copied into the app's
+folder with the Files app or Finder. Touch buttons sit in the bars beside
+the 4:3 picture, a thumb anywhere else in flight is the stick, and game
+controllers work as on the desktop. `bin/build-ios.sh simulator` or
+`bin/build-ios.sh device` builds `out-ios/<slice>/WingCommander.app`. See
+[the iOS documentation](docs/IOS.md).
+
 ### Fixes and features
 
 What the port adds on top of the reconstructed game. The first group is always
@@ -257,7 +266,8 @@ Contributor references are intentionally limited to:
 - [compilation-unit order](docs/ORDER.md);
 - [function naming policy](docs/LABELS.md);
 - [SDL2 port architecture](docs/SDL2.md);
-- [Nintendo 3DS port](docs/3DS.md); and
+- [Nintendo 3DS port](docs/3DS.md);
+- [iOS and iPadOS port](docs/IOS.md); and
 - [release process](docs/RELEASING.md).
 
 ## Acknowledgements

@@ -5,6 +5,9 @@
 #ifdef __3DS__
 #include "n3ds.h"
 #endif
+#ifdef __IPHONEOS__
+#include "ios.h"
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -239,6 +242,36 @@ int main(int argumentCount, char **arguments)
      * mixer threads run recovered code written for Win32's 1 MB. */
     SDL_SetHint(SDL_HINT_THREAD_STACK_SIZE, "262144");
 #endif
+#ifdef __IPHONEOS__
+    if (!IosFindGameDirectory()) {
+        SDL_ShowSimpleMessageBox(
+            SDL_MESSAGEBOX_ERROR, "Wing Commander",
+            "The game data was not found.\n\n"
+            "Copy your Wing Commander folder, the one that holds "
+            "GAMEDAT, into the app's folder: in the Files app it is "
+            "On My iPhone > Wing Commander, and Finder shows it under "
+            "the device's Files tab.",
+            NULL);
+        return 1;
+    }
+    /* The touch stick and a game controller both arrive as a controller
+     * with two sticks, as on the 3DS. */
+    if ((launcherOptions.explicitOptions &
+         SDL_LAUNCHER_EXPLICIT_JOYSTICK_MODE) == 0)
+        launcherOptions.joystickMode =
+            SDL_LAUNCHER_JOYSTICK_FOUR_BUTTON_FOUR_AXIS;
+    /* SDL otherwise lists the accelerometer as the first joystick, and the
+     * game, which takes the first one, would steer the pointer by the
+     * phone's tilt. */
+    SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
+    /* The touch overlay turns touches into pointer moves and clicks itself
+     * (ios_touch.m); SDL's touch-as-mouse would click where a finger lands
+     * while the overlay stands aside for a game controller. */
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    /* A swipe up in flight should not leave the game. */
+    SDL_SetHint(SDL_HINT_IOS_HIDE_HOME_INDICATOR, "2");
+#endif
     if (useLauncherGui) {
         launcherResult = SdlOpenLauncherGui(&launcherOptions);
         if (launcherResult == SDL_LAUNCHER_CANCELLED)
@@ -279,6 +312,10 @@ int main(int argumentCount, char **arguments)
     }
 
     windowFlags = SDL_WINDOW_RESIZABLE;
+#ifdef __IPHONEOS__
+    windowFlags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_ALLOW_HIGHDPI |
+                  SDL_WINDOW_BORDERLESS;
+#endif
     if (!SdlConfigureVideoWindow(&windowFlags)) {
         fprintf(stderr, "SDL video configuration failed: %s\n",
                 SDL_GetError());
@@ -306,6 +343,10 @@ int main(int argumentCount, char **arguments)
 
     DIBinstall((HWND)window);
     hMainWindow = (HWND)window;
+#ifdef __IPHONEOS__
+    /* Before the game looks for a joystick, so it finds the touch one. */
+    IosInitializeTouchControls(window);
+#endif
     SdlStartEventPump();
     CheckLauncherAndConfig();
     usingDosData = SdlUsingDosData();
@@ -359,6 +400,9 @@ int main(int argumentCount, char **arguments)
     SdlShutdownOriginFxAudio();
 
     DIBunInstall();
+#ifdef __IPHONEOS__
+    IosShutdownTouchControls();
+#endif
     SdlShutdownJoysticks();
     SDL_DestroyWindow(window);
     SDL_Quit();

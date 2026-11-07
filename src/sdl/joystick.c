@@ -1,4 +1,7 @@
 #include "wc1.h"
+#ifdef __IPHONEOS__
+#include "ios.h"
+#endif
 
 typedef struct SdlJoystickDevice {
     SDL_GameController *controller;
@@ -1210,6 +1213,22 @@ void SdlHandleJoystickDeviceEvent(Uint32 type, Sint32 which)
         LoadJoystickCalibrationFile(9, 9, 1, 1);
 }
 
+#ifdef __IPHONEOS__
+void SdlSelectJoystickInstance(SDL_JoystickID instanceId)
+{
+    int slot;
+
+    /* Only while the game reads a joystick: the calibration that turned it
+     * on applies to every SDL controller alike. */
+    if (instanceId < 0 || nActiveInputDevice == -1)
+        return;
+    SdlRefreshJoysticks();
+    slot = SdlFindJoystick(instanceId);
+    if (slot != -1)
+        nActiveInputDevice = (short)slot;
+}
+
+#endif
 void SdlShutdownJoysticks(void)
 {
     int slot;

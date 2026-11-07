@@ -4,6 +4,9 @@
 #ifdef __3DS__
 #include "n3ds.h"
 #endif
+#ifdef __IPHONEOS__
+#include "ios.h"
+#endif
 
 static int SdlTranslateVirtualKey(SDL_Keycode key)
 {
@@ -669,6 +672,21 @@ void SdlPumpEvents(void)
             if (SdlHandleWindowEvent(&event.window))
                 return;
             break;
+#ifdef __IPHONEOS__
+        case SDL_APP_DIDENTERBACKGROUND:
+            /* iOS ends an app that draws in the background.  Wait here,
+             * with the game stopped where it was, until it returns. */
+            while (SDL_WaitEvent(&event) &&
+                   event.type != SDL_APP_WILLENTERFOREGROUND &&
+                   event.type != SDL_APP_DIDENTERFOREGROUND &&
+                   event.type != SDL_QUIT)
+                ;
+            if (event.type == SDL_QUIT) {
+                ShutdownGameWindow();
+                return;
+            }
+            break;
+#endif
         case SDL_KEYDOWN:
         case SDL_KEYUP:
             if (SdlHandleKeyboardEvent(&event.key))
@@ -714,5 +732,8 @@ void SdlPumpEvents(void)
     }
 #ifdef __3DS__
     SdlPollN3dsTouch();
+#endif
+#ifdef __IPHONEOS__
+    IosUpdateTouchControls();
 #endif
 }

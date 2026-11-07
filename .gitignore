@@ -41,3 +41,6 @@ __pycache__/
 
 # Nintendo 3DS build
 out-3ds/
+
+# iOS build
+out-ios/
